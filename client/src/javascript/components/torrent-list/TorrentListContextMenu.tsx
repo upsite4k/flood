@@ -130,54 +130,8 @@ export const getContextMenuItems = (torrent: TorrentProperties): Array<ContextMe
       type: 'action',
       action: 'transfer',
       label: TorrentContextMenuActions.transfer,
-      clickHandler: async () => {
-        const hash = getLastSelectedTorrent();
-
-        // Ask user where to transfer
-        const input = window.prompt(
-          'Transfer to (series / movies / games):',
-          'series',
-        );
-        if (!input) {
-          return;
-        }
-
-        const category = input.toLowerCase().trim() as
-          | 'series'
-          | 'movies'
-          | 'games';
-
-        if (!['series', 'movies', 'games'].includes(category)) {
-          window.alert('Invalid target, please use series / movies / games');
-          return;
-        }
-
-        try {
-          const res = await fetch(
-            `${ConfigStore.baseURI}api/torrents/${hash}/transfer`,
-            {
-              method: 'POST',
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({category}),
-            },
-          );
-
-          if (!res.ok) {
-            let data: any = {};
-            try {
-              data = await res.json();
-            } catch {
-              // ignore JSON error
-            }
-            throw new Error(data.error || res.statusText);
-          }
-
-          window.alert('Transfer started.');
-        } catch (e: any) {
-          window.alert(
-            `Transfer failed: ${e?.message ?? String(e)}`,
-          );
-        }
+      clickHandler: () => {
+        UIStore.setActiveModal({id: 'transfer-torrent'});
       },
     },
     {

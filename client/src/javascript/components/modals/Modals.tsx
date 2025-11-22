@@ -8,6 +8,7 @@ import ConfirmModal from './confirm-modal/ConfirmModal';
 import FeedsModal from './feeds-modal/FeedsModal';
 import GenerateMagnetModal from './generate-magnet-modal/GenerateMagnetModal';
 import MoveTorrentsModal from './move-torrents-modal/MoveTorrentsModal';
+import TransferTorrentModal from './transfer-torrent-modal/TransferTorrentModal';
 import RemoveTorrentsModal from './remove-torrents-modal/RemoveTorrentsModal';
 import SetTagsModal from './set-tags-modal/SetTagsModal';
 import SetTrackersModal from './set-trackers-modal/SetTrackersModal';
@@ -29,6 +30,8 @@ const createModal = (id: Modal['id']): React.ReactNode => {
       return <GenerateMagnetModal />;
     case 'move-torrents':
       return <MoveTorrentsModal />;
+    case 'transfer-torrent':
+      return <TransferTorrentModal />;
     case 'remove-torrents':
       return <RemoveTorrentsModal />;
     case 'set-taxonomy':

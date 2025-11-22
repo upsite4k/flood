@@ -1006,6 +1006,14 @@ router.post<{hash: string}, unknown, {category: string}>(
       return res.status(404).json({error: 'Torrent not found'});
     }
 
+    // Ensure the torrent is fully fetched (100%) before allowing transfer
+    const percentComplete: number | undefined = (torrent as any).percentComplete;
+    if (typeof percentComplete === 'number' && percentComplete < 100) {
+      return res
+        .status(409)
+        .json({error: 'Torrent is not fully downloaded yet', percentComplete});
+    }
+
     const torrentDir: string | undefined =
       (torrent as any).directory ||
       (torrent as any).path ||
@@ -1018,24 +1026,91 @@ router.post<{hash: string}, unknown, {category: string}>(
         .json({error: 'Could not determine torrent directory'});
     }
 
-    const scriptPath = '/usr/local/bin/transfer-torrent.sh';
+    // Determine whether to transfer per directory or per file based on the top-level entries
+    // of the torrent contents. If there are any directories at the top level, create one
+    // transfer per directory. If there are only files at the top level, create one transfer per file.
+    let targets: Array<{type: 'directory' | 'file'; path: string}> = [];
+    try {
+      const contents = await req.services.clientGatewayService.getTorrentContents(hash);
 
-    const child = childProcess.spawn(
-      scriptPath,
-      [torrentDir, category],
-      {
-        detached: true,
-        stdio: 'ignore',
-      },
-    );
+      // Build sets of top-level directories and root-level files
+      const topLevelDirs = new Set<string>();
+      const rootFiles: Array<string> = [];
 
-    child.unref();
+      for (const item of contents) {
+        const itemPath: string = (item as any).path || (item as any).filename;
+        if (!itemPath) continue;
+
+        const absPath = path.isAbsolute(itemPath) ? itemPath : path.join(torrentDir, itemPath);
+        const rel = path.relative(torrentDir, absPath);
+        // Normalize and split by platform separator
+        const parts = rel.split(path.sep).filter(Boolean);
+
+        if (parts.length > 1) {
+          topLevelDirs.add(parts[0]);
+        } else if (parts.length === 1) {
+          // File at the root of the torrent
+          rootFiles.push(absPath);
+        }
+      }
+
+      if (topLevelDirs.size > 0) {
+        // There is at least one directory at the top level:
+        // request one transfer per directory (do not include root files in this branch)
+        for (const dirName of topLevelDirs) {
+          const dirPath = path.join(torrentDir, dirName);
+          targets.push({type: 'directory', path: dirPath});
+        }
+      } else {
+        // No directories: transfer each file separately
+        for (const f of rootFiles) {
+          targets.push({type: 'file', path: f});
+        }
+      }
+    } catch {
+      // Fallback: if contents cannot be determined, transfer the entire torrent directory
+      targets = [{type: 'directory', path: torrentDir}];
+    }
+
+    // Ensure at least one target exists; if not, fall back to directory
+    if (targets.length === 0) {
+      targets.push({type: 'directory', path: torrentDir});
+    }
+
+    const scriptPath = '/app/transfer-torrent.sh';
+
+    // Spawn one detached process per target
+    const requested: {directories: string[]; files: string[]; total: number} = {
+      directories: [],
+      files: [],
+      total: 0,
+    };
+
+    for (const t of targets) {
+      try {
+        const child = childProcess.spawn(scriptPath, [t.path, category], {
+          detached: true,
+          stdio: 'ignore',
+        });
+        child.unref();
+
+        if (t.type === 'directory') {
+          requested.directories.push(t.path);
+        } else {
+          requested.files.push(t.path);
+        }
+      } catch {
+        // Ignore spawn errors per-target; continue with others
+      }
+    }
+    requested.total = requested.directories.length + requested.files.length;
 
     return res.status(202).json({
       ok: true,
       message: 'Transfer started',
       category,
-      torrentDir,
+      baseDirectory: torrentDir,
+      requested,
     });
   },
 );
