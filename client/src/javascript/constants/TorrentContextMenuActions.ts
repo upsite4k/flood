@@ -14,6 +14,7 @@ const TorrentContextMenuActions = {
   setInitialSeeding: 'torrents.list.context.initial.seeding',
   setSequential: 'torrents.list.context.sequential',
   setPriority: 'torrents.list.context.priority',
+  transfer: 'torrents.list.context.transfer',
 } as const;
 
 export default TorrentContextMenuActions;

@@ -991,4 +991,54 @@ router.get(
     ),
 );
 
+router.post<{hash: string}, unknown, {category: string}>(
+  '/:hash/transfer',
+  async (req, res) => {
+    const {hash} = req.params;
+    const {category} = req.body ?? {};
+
+    if (!category || !['series', 'movies', 'games'].includes(category)) {
+      return res.status(400).json({error: 'Invalid category'});
+    }
+
+    const torrent = req.services.torrentService.getTorrent(hash);
+    if (!torrent) {
+      return res.status(404).json({error: 'Torrent not found'});
+    }
+
+    const torrentDir: string | undefined =
+      (torrent as any).directory ||
+      (torrent as any).path ||
+      ((torrent as any).contents?.[0]?.path &&
+        path.dirname((torrent as any).contents[0].path));
+
+    if (!torrentDir) {
+      return res
+        .status(500)
+        .json({error: 'Could not determine torrent directory'});
+    }
+
+    const scriptPath = '/usr/local/bin/transfer-torrent.sh';
+
+    const child = childProcess.spawn(
+      scriptPath,
+      [torrentDir, category],
+      {
+        detached: true,
+        stdio: 'ignore',
+      },
+    );
+
+    child.unref();
+
+    return res.status(202).json({
+      ok: true,
+      message: 'Transfer started',
+      category,
+      torrentDir,
+    });
+  },
+);
+
+
 export default router;
