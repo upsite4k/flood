@@ -6,6 +6,7 @@ import ConfigStore from '@client/stores/ConfigStore';
 import TorrentContextMenuActions from '@client/constants/TorrentContextMenuActions';
 import TorrentStore from '@client/stores/TorrentStore';
 import UIStore from '@client/stores/UIStore';
+import Dropdown, {DropdownItem} from '@client/components/general/form-elements/Dropdown';
 
 import Modal from '../Modal';
 import ModalActions from '../ModalActions';
@@ -19,6 +20,7 @@ const TransferTorrentModal: FC = () => {
   const {i18n} = useLingui();
   const [isTransferring, setIsTransferring] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category>('series');
 
   const hashes = TorrentStore.selectedTorrents;
   const isDisabled = hashes.length === 0;
@@ -36,7 +38,8 @@ const TransferTorrentModal: FC = () => {
               setIsTransferring(true);
 
               const hash = getLastSelectedTorrent();
-              const category = (formData.category as Category) ?? 'series';
+              // Prefer value from hidden input (kept in sync with dropdown)
+              const category = ((formData.category as Category) ?? selectedCategory) || 'series';
 
               try {
                 const res = await fetch(
@@ -70,11 +73,26 @@ const TransferTorrentModal: FC = () => {
               <label htmlFor="category" style={{display: 'block', marginBottom: 4}}>
                 <Trans id="torrents.transfer.select.destination"/>
               </label>
-              <select id="category" name="category" defaultValue="series" style={{width: '100%'}}>
-                <option value="series">Series</option>
-                <option value="movies">Movies</option>
-                <option value="games">Games</option>
-              </select>
+              {/* Hidden input to integrate Dropdown selection with Form serialization */}
+              <input type="hidden" id="category" name="category" value={selectedCategory} />
+              <div>
+                <Dropdown
+                  header={<span>{selectedCategory === 'series' ? 'Series' : selectedCategory === 'movies' ? 'Movies' : 'Games'}</span>}
+                  menuItems={[
+                    [
+                      {displayName: 'Series', property: 'series', selectable: true, selected: selectedCategory === 'series'},
+                      {displayName: 'Movies', property: 'movies', selectable: true, selected: selectedCategory === 'movies'},
+                      {displayName: 'Games', property: 'games', selectable: true, selected: selectedCategory === 'games'},
+                    ] as Array<DropdownItem<Category>>,
+                  ]}
+                  handleItemSelect={(item) => {
+                    const prop = (item.property || 'series') as Category;
+                    setSelectedCategory(prop);
+                  }}
+                  matchButtonWidth={false}
+                  width="large"
+                />
+              </div>
             </FormRow>
             {isDisabled && (
               <FormRow>
