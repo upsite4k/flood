@@ -60,6 +60,8 @@ const defaultFloodSettings: Readonly<FloodSettings> = {
     {id: 'reannounce', visible: false},
     {id: 'setTaxonomy', visible: true},
     {id: 'move', visible: true},
+    // Custom transfer action (hidden by default; enable via Settings → UI)
+    {id: 'transfer', visible: false},
     {id: 'setTrackers', visible: false},
     {id: 'torrentDetails', visible: true},
     {id: 'downloadContents', visible: true},

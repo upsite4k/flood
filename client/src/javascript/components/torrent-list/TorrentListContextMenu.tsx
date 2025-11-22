@@ -129,7 +129,7 @@ export const getContextMenuItems = (torrent: TorrentProperties): Array<ContextMe
      {
       type: 'action',
       action: 'transfer',
-      label: 'Transfer (rsync)',
+      label: TorrentContextMenuActions.transfer,
       clickHandler: async () => {
         const hash = getLastSelectedTorrent();
 
