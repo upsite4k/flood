@@ -2,6 +2,7 @@ const TorrentContextMenuActions = {
   start: 'torrents.list.context.start',
   stop: 'torrents.list.context.stop',
   remove: 'torrents.list.context.remove',
+  transfer: 'torrents.list.context.transfer',
   checkHash: 'torrents.list.context.check.hash',
   reannounce: 'torrents.list.context.reannounce',
   setTaxonomy: 'torrents.list.context.set.tags',
@@ -14,7 +15,6 @@ const TorrentContextMenuActions = {
   setInitialSeeding: 'torrents.list.context.initial.seeding',
   setSequential: 'torrents.list.context.sequential',
   setPriority: 'torrents.list.context.priority',
-  transfer: 'torrents.list.context.transfer',
 } as const;
 
 export default TorrentContextMenuActions;

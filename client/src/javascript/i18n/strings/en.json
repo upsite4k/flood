@@ -337,6 +337,7 @@
   "torrents.list.context.set.trackers": "Set Trackers",
   "torrents.list.context.start": "Start",
   "torrents.list.context.stop": "Stop",
+  "torrents.list.context.transfer": "Transfer",
   "torrents.list.drop": "Drop files here to add them.",
   "torrents.list.no.torrents": "No torrents to display.",
   "torrents.move.button.set.location": "Set Location",
