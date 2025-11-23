@@ -65,3 +65,4 @@ export {default as TrackerMessage} from './TrackerMessage';
 export {default as Upload} from './Upload';
 export {default as UploadSmall} from './UploadSmall';
 export {default as UploadThick} from './UploadThick';
+export {default as RefreshKodi} from './RefreshKodi';

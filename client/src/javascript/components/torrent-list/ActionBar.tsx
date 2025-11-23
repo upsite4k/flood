@@ -3,7 +3,8 @@ import {FC} from 'react';
 import {observer} from 'mobx-react-lite';
 import {useLingui} from '@lingui/react';
 
-import {Add, Menu, Remove, Start, Stop} from '@client/ui/icons';
+import {Add, Menu, Remove, Start, Stop, RefreshKodi} from '@client/ui/icons';
+import FloodActions from '@client/actions/FloodActions';
 import SettingActions from '@client/actions/SettingActions';
 import SettingStore from '@client/stores/SettingStore';
 import TorrentActions from '@client/actions/TorrentActions';
@@ -85,6 +86,16 @@ const ActionBar: FC = observer(() => {
                 id: 'remove-torrents',
               })
             }
+          />
+        </div>
+        <div className="action-bar__group action-bar__group--has-divider">
+          <Action
+            label={i18n._('actionbar.button.refresh.kodi')}
+            slug="refresh-kodi"
+            icon={<RefreshKodi />}
+            clickHandler={() => {
+              FloodActions.refreshKodi();
+            }}
           />
         </div>
       </div>

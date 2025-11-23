@@ -1,3 +1,4 @@
+import {execFile} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -155,6 +156,32 @@ router.get<unknown, unknown, unknown, DirectoryListQuery>(
     });
   },
 );
+
+/**
+ * POST /api/refresh-kodi
+ * @summary Executes the refresh Kodi script on the host
+ * @tags Flood
+ * @security User
+ * @return {{ok: true}} 200 - success response - application/json
+ * @return {Error} 500 - failure response - application/json
+ */
+router.post('/refresh-kodi', (req, res): Response => {
+  // Execute the script with a timeout for safety.
+  execFile('/app/update-kodi.sh', {timeout: 30_000}, (error, stdout = '', stderr = '') => {
+    if (error != null) {
+      const message = stderr || error.message || 'Failed to execute update-kodi.sh';
+      // Use 500 to indicate server-side execution failure
+      return res.status(500).json({code: 'EEXEC', message});
+    }
+
+    return res.status(200).json({ok: true, stdout});
+  });
+
+  // Response will be sent in callback
+  // Returning here to satisfy typing though Express ignores it.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return undefined as any;
+});
 
 /**
  * GET /api/history

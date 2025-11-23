@@ -130,6 +130,16 @@ const FloodActions = {
       });
     }
   },
+
+  refreshKodi: () =>
+    axios
+      .post(`${baseURI}api/refresh-kodi`)
+      .then(() => {
+        // no-op on success
+      })
+      .catch(() => {
+        // no-op on failure
+      }),
 } as const;
 
 const handleProlongedInactivity = () => {

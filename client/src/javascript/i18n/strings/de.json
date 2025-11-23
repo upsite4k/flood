@@ -3,6 +3,7 @@
   "actionbar.button.remove.torrent": "Torrent entfernen",
   "actionbar.button.start.torrent": "Torrent starten",
   "actionbar.button.stop.torrent": "Torrent stoppen",
+  "actionbar.button.refresh.kodi": "KODI Videothek aktualisieren",
   "alert.settings.saved": "Einstellungen erfolgreich gespeichert.",
   "alert.torrent.add": "{countElement} {count, plural, =1 {Torrent} other {Torrents}} erfolgreich hinzugefügt.",
   "alert.torrent.add.failed": "Hinzufügen von {countElement} {count, plural, =1 {Torrent} other {Torrents}} fehlgeschlagen.",
