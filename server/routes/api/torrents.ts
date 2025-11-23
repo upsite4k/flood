@@ -1026,10 +1026,6 @@ router.post<{hash: string}, unknown, {category: string}>(
         .json({error: 'Could not determine torrent directory'});
     }
 
-    // Determine whether to transfer per directory or per file based on the
-    // top-level entries of the torrent contents. If there are any directories
-    // at the top level, create one transfer per directory. If there are only
-    // files at the top level, create one transfer per file.
     let targets: Array<{type: 'directory' | 'file'; path: string}> = [];
 
     try {
@@ -1050,7 +1046,7 @@ router.post<{hash: string}, unknown, {category: string}>(
           // Determine if this path is a directory on disk
           let isDir = false;
           try {
-            const st =  await fs.promises.stat(absPath);
+            const st = await fs.promises.stat(absPath);
             isDir = st.isDirectory();
           } catch {
             // If stat fails, treat it as a file
@@ -1086,17 +1082,17 @@ router.post<{hash: string}, unknown, {category: string}>(
       }
 
       if (topLevelDirs.size > 0) {
+        // ▶ SERIES / MULTI-FOLDER:
         // At least one directory at the top level:
         // request one transfer per directory (ignore root files in this mode)
         for (const dirName of topLevelDirs) {
           const dirPath = path.join(torrentDir, dirName);
           targets.push({type: 'directory', path: dirPath});
         }
-      } else {
-        // No directories: transfer each root file separately
-        for (const f of rootFiles) {
-          targets.push({type: 'file', path: f});
-        }
+      } else if (rootFiles.length > 0) {
+        // ▶ MOVIE / SINGLE-FOLDER:
+        // Only files at the root: transfer the whole torrent directory once
+        targets.push({type: 'directory', path: torrentDir});
       }
     } catch {
       // Fallback: if contents cannot be determined, transfer the entire torrent directory
@@ -1110,7 +1106,6 @@ router.post<{hash: string}, unknown, {category: string}>(
 
     const scriptPath = '/app/transfer-torrent.sh';
 
-    // Spawn one detached process per target
     const requested: {directories: string[]; files: string[]; total: number} = {
       directories: [],
       files: [],
@@ -1145,6 +1140,7 @@ router.post<{hash: string}, unknown, {category: string}>(
     });
   },
 );
+
 
 
 export default router;
