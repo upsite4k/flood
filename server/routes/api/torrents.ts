@@ -1026,43 +1026,74 @@ router.post<{hash: string}, unknown, {category: string}>(
         .json({error: 'Could not determine torrent directory'});
     }
 
-    // Determine whether to transfer per directory or per file based on the top-level entries
-    // of the torrent contents. If there are any directories at the top level, create one
-    // transfer per directory. If there are only files at the top level, create one transfer per file.
+    // Determine whether to transfer per directory or per file based on the
+    // top-level entries of the torrent contents. If there are any directories
+    // at the top level, create one transfer per directory. If there are only
+    // files at the top level, create one transfer per file.
     let targets: Array<{type: 'directory' | 'file'; path: string}> = [];
+
     try {
       const contents = await req.services.clientGatewayService.getTorrentContents(hash);
 
-      // Build sets of top-level directories and root-level files
       const topLevelDirs = new Set<string>();
-      const rootFiles: Array<string> = [];
+      const rootFiles: string[] = [];
 
-      for (const item of contents) {
-        const itemPath: string = (item as any).path || (item as any).filename;
-        if (!itemPath) continue;
+      const processed = await Promise.all(
+        contents.map(async (item: any) => {
+          const itemPath: string = item.path || item.filename;
+          if (!itemPath) return null;
 
-        const absPath = path.isAbsolute(itemPath) ? itemPath : path.join(torrentDir, itemPath);
-        const rel = path.relative(torrentDir, absPath);
-        // Normalize and split by platform separator
-        const parts = rel.split(path.sep).filter(Boolean);
+          const absPath = path.isAbsolute(itemPath)
+            ? itemPath
+            : path.join(torrentDir, itemPath);
+
+          // Determine if this path is a directory on disk
+          let isDir = false;
+          try {
+            const st =  await fs.promises.stat(absPath);
+            isDir = st.isDirectory();
+          } catch {
+            // If stat fails, treat it as a file
+            isDir = false;
+          }
+
+          const rel = path.relative(torrentDir, absPath);
+          const parts = rel.split(path.sep).filter(Boolean);
+
+          if (parts.length === 0) {
+            return null;
+          }
+
+          return {absPath, parts, isDir};
+        }),
+      );
+
+      for (const entry of processed) {
+        if (!entry) continue;
+        const {absPath, parts, isDir} = entry;
 
         if (parts.length > 1) {
+          // Nested path – mark its top-level directory
           topLevelDirs.add(parts[0]);
         } else if (parts.length === 1) {
-          // File at the root of the torrent
-          rootFiles.push(absPath);
+          // Item at the root of the torrent – could be dir or file
+          if (isDir) {
+            topLevelDirs.add(parts[0]);
+          } else {
+            rootFiles.push(absPath);
+          }
         }
       }
 
       if (topLevelDirs.size > 0) {
-        // There is at least one directory at the top level:
-        // request one transfer per directory (do not include root files in this branch)
+        // At least one directory at the top level:
+        // request one transfer per directory (ignore root files in this mode)
         for (const dirName of topLevelDirs) {
           const dirPath = path.join(torrentDir, dirName);
           targets.push({type: 'directory', path: dirPath});
         }
       } else {
-        // No directories: transfer each file separately
+        // No directories: transfer each root file separately
         for (const f of rootFiles) {
           targets.push({type: 'file', path: f});
         }
