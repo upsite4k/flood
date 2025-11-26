@@ -991,27 +991,28 @@ router.get(
     ),
 );
 
-router.post<{hash: string}, unknown, {category: string}>(
+router.post<{ hash: string }, unknown, { category: string }>(
   '/:hash/transfer',
   async (req, res) => {
-    const {hash} = req.params;
-    const {category} = req.body ?? {};
+    const { hash } = req.params;
+    const { category } = req.body ?? {};
 
     if (!category || !['series', 'movies', 'games'].includes(category)) {
-      return res.status(400).json({error: 'Invalid category'});
+      return res.status(400).json({ error: 'Invalid category' });
     }
 
     const torrent = req.services.torrentService.getTorrent(hash);
     if (!torrent) {
-      return res.status(404).json({error: 'Torrent not found'});
+      return res.status(404).json({ error: 'Torrent not found' });
     }
 
-    // Ensure the torrent is fully fetched (100%) before allowing transfer
+    // Require completed download
     const percentComplete: number | undefined = (torrent as any).percentComplete;
     if (typeof percentComplete === 'number' && percentComplete < 100) {
-      return res
-        .status(409)
-        .json({error: 'Torrent is not fully downloaded yet', percentComplete});
+      return res.status(409).json({
+        error: 'Torrent is not fully downloaded yet',
+        percentComplete,
+      });
     }
 
     const torrentDir: string | undefined =
@@ -1023,90 +1024,72 @@ router.post<{hash: string}, unknown, {category: string}>(
     if (!torrentDir) {
       return res
         .status(500)
-        .json({error: 'Could not determine torrent directory'});
+        .json({ error: 'Could not determine torrent directory' });
     }
 
-    let targets: Array<{type: 'directory' | 'file'; path: string}> = [];
+    let targets: Array<{ type: 'directory' | 'file'; path: string }> = [];
 
     try {
       const contents = await req.services.clientGatewayService.getTorrentContents(hash);
 
-      const topLevelDirs = new Set<string>();
+      const directories: string[] = [];
       const rootFiles: string[] = [];
 
-      const processed = await Promise.all(
-        contents.map(async (item: any) => {
-          const itemPath: string = item.path || item.filename;
-          if (!itemPath) return null;
+      for (const item of contents) {
+        const itemPath: string = (item as any).path || (item as any).filename;
+        if (!itemPath) continue;
 
-          const absPath = path.isAbsolute(itemPath)
-            ? itemPath
-            : path.join(torrentDir, itemPath);
+        const absPath = path.isAbsolute(itemPath)
+          ? itemPath
+          : path.join(torrentDir, itemPath);
 
-          // Determine if this path is a directory on disk
-          let isDir = false;
-          try {
-            const st = await fs.promises.stat(absPath);
-            isDir = st.isDirectory();
-          } catch {
-            // If stat fails, treat it as a file
-            isDir = false;
-          }
-
-          const rel = path.relative(torrentDir, absPath);
-          const parts = rel.split(path.sep).filter(Boolean);
-
-          if (parts.length === 0) {
-            return null;
-          }
-
-          return {absPath, parts, isDir};
-        }),
-      );
-
-      for (const entry of processed) {
-        if (!entry) continue;
-        const {absPath, parts, isDir} = entry;
+        const rel = path.relative(torrentDir, absPath);
+        const parts = rel.split(path.sep).filter(Boolean);
+        if (parts.length === 0) continue;
 
         if (parts.length > 1) {
-          // Nested path – mark its top-level directory
-          topLevelDirs.add(parts[0]);
+          // Nested → treat its top-level segment as directory
+          const topDirPath = path.join(torrentDir, parts[0]);
+          directories.push(topDirPath);
         } else if (parts.length === 1) {
-          // Item at the root of the torrent – could be dir or file
-          if (isDir) {
-            topLevelDirs.add(parts[0]);
-          } else {
+          // Root-level entry: decide if it's a file or dir
+          try {
+            const st = await fs.promises.stat(absPath);
+            if (st.isDirectory()) {
+              directories.push(absPath);
+            } else {
+              rootFiles.push(absPath);
+            }
+          } catch {
+            // On stat error, assume file
             rootFiles.push(absPath);
           }
         }
       }
 
-      if (topLevelDirs.size > 0) {
-        // ▶ SERIES / MULTI-FOLDER:
-        // At least one directory at the top level:
-        // request one transfer per directory (ignore root files in this mode)
-        for (const dirName of topLevelDirs) {
-          const dirPath = path.join(torrentDir, dirName);
-          targets.push({type: 'directory', path: dirPath});
-        }
-      } else if (rootFiles.length > 0) {
-        // ▶ MOVIE / SINGLE-FOLDER:
-        // Only files at the root: transfer the whole torrent directory once
-        targets.push({type: 'directory', path: torrentDir});
+      const uniqueDirs = Array.from(new Set(directories));
+
+      if (uniqueDirs.length === 0) {
+        // CASE 3: ONLY ROOT FILE(S) (e.g. debian.iso) → transfer files individually
+        targets = rootFiles.map((f) => ({ type: 'file', path: f }));
+      } else {
+        // CASE 1/2: any directory exists (series pack, movie+Sample, etc.)
+        // → transfer whole torrentDir once
+        targets = [{ type: 'directory', path: torrentDir }];
       }
     } catch {
-      // Fallback: if contents cannot be determined, transfer the entire torrent directory
-      targets = [{type: 'directory', path: torrentDir}];
+      // Fallback if contents not available → transfer whole dir
+      targets = [{ type: 'directory', path: torrentDir }];
     }
 
-    // Ensure at least one target exists; if not, fall back to directory
+    // Safety fallback
     if (targets.length === 0) {
-      targets.push({type: 'directory', path: torrentDir});
+      targets.push({ type: 'directory', path: torrentDir });
     }
 
     const scriptPath = '/app/transfer-torrent.sh';
 
-    const requested: {directories: string[]; files: string[]; total: number} = {
+    const requested: { directories: string[]; files: string[]; total: number } = {
       directories: [],
       files: [],
       total: 0,
@@ -1126,7 +1109,7 @@ router.post<{hash: string}, unknown, {category: string}>(
           requested.files.push(t.path);
         }
       } catch {
-        // Ignore spawn errors per-target; continue with others
+        // ignore per-target spawn errors
       }
     }
     requested.total = requested.directories.length + requested.files.length;
@@ -1140,7 +1123,6 @@ router.post<{hash: string}, unknown, {category: string}>(
     });
   },
 );
-
 
 
 export default router;
