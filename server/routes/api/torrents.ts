@@ -1032,7 +1032,7 @@ router.post<{ hash: string }, unknown, { category: string }>(
     try {
       const contents = await req.services.clientGatewayService.getTorrentContents(hash);
 
-      const directories: string[] = [];
+      let hasDirectory = false;
       const rootFiles: string[] = [];
 
       for (const item of contents) {
@@ -1048,15 +1048,14 @@ router.post<{ hash: string }, unknown, { category: string }>(
         if (parts.length === 0) continue;
 
         if (parts.length > 1) {
-          // Nested → treat its top-level segment as directory
-          const topDirPath = path.join(torrentDir, parts[0]);
-          directories.push(topDirPath);
+          // Nested -> there is definitely at least one directory
+          hasDirectory = true;
         } else if (parts.length === 1) {
-          // Root-level entry: decide if it's a file or dir
+          // Root-level entry: check if it's a dir or a file
           try {
             const st = await fs.promises.stat(absPath);
             if (st.isDirectory()) {
-              directories.push(absPath);
+              hasDirectory = true;
             } else {
               rootFiles.push(absPath);
             }
@@ -1067,18 +1066,16 @@ router.post<{ hash: string }, unknown, { category: string }>(
         }
       }
 
-      const uniqueDirs = Array.from(new Set(directories));
-
-      if (uniqueDirs.length === 0) {
-        // CASE 3: ONLY ROOT FILE(S) (e.g. debian.iso) → transfer files individually
+      if (!hasDirectory && rootFiles.length > 0) {
+        // Pure file torrent (e.g. debian.iso) -> transfer files individually
         targets = rootFiles.map((f) => ({ type: 'file', path: f }));
       } else {
-        // CASE 1/2: any directory exists (series pack, movie+Sample, etc.)
-        // → transfer whole torrentDir once
+        // Any directory exists (Sample, Season 01, etc.) OR no contents info:
+        // -> transfer the whole torrent directory once
         targets = [{ type: 'directory', path: torrentDir }];
       }
     } catch {
-      // Fallback if contents not available → transfer whole dir
+      // Fallback if contents not available -> transfer whole dir
       targets = [{ type: 'directory', path: torrentDir }];
     }
 
@@ -1123,6 +1120,7 @@ router.post<{ hash: string }, unknown, { category: string }>(
     });
   },
 );
+
 
 
 export default router;
