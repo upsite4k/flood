@@ -990,7 +990,6 @@ router.get(
       ({code, message}) => res.status(500).json({code, message}),
     ),
 );
-
 router.post<{ hash: string }, unknown, { category: string }>(
   '/:hash/transfer',
   async (req, res) => {
@@ -1066,12 +1065,18 @@ router.post<{ hash: string }, unknown, { category: string }>(
         }
       }
 
+      const ROOT_DOWNLOAD_DIR = '/data'; // your global download directory
+
       if (!hasDirectory && rootFiles.length > 0) {
-        // Pure file torrent (e.g. debian.iso) -> transfer files individually
-        targets = rootFiles.map((f) => ({ type: 'file', path: f }));
+        if (torrentDir === ROOT_DOWNLOAD_DIR) {
+          // Debian-style torrent: data directly in /data → transfer files only
+          targets = rootFiles.map((f) => ({ type: 'file', path: f }));
+        } else {
+          // Normal torrent with its own directory → transfer that directory
+          targets = [{ type: 'directory', path: torrentDir }];
+        }
       } else {
-        // Any directory exists (Sample, Season 01, etc.) OR no contents info:
-        // -> transfer the whole torrent directory once
+        // Any directory exists or no files → transfer whole torrentDir
         targets = [{ type: 'directory', path: torrentDir }];
       }
     } catch {
